@@ -1,80 +1,107 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: GPL-3.0
 
-pragma solidity >=0.7.0 <0.9.0;
-
-interface IERC20Token {
-  function transfer(address, uint256) external returns (bool);
-  function approve(address, uint256) external returns (bool);
-  function transferFrom(address, address, uint256) external returns (bool);
-  function totalSupply() external view returns (uint256);
-  function balanceOf(address) external view returns (uint256);
-  function allowance(address, address) external view returns (uint256);
-
-  event Transfer(address indexed from, address indexed to, uint256 value);
-  event Approval(address indexed owner, address indexed spender, uint256 value);
-}
+pragma solidity ^0.8.0;
 
 contract Academichain {
 
+    uint internal studentsLength = 0;
+    uint internal transcriptsLength = 0;
     uint internal gradesLength = 0;
-    address internal cUsdTokenAddress = 0x874069Fa1Eb16D44d622F2e0Ca25eeA172369bC1;
+    address grader = 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4;
+    address student = 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4;
+    // address grader = 0x2121cB84c07C03C86cab9142011233ea5c00ADd4;
+    // address student = 0x6aa049aFe44e6791ac07E6820D0018ba1601660B;
+    
+    struct Student {
+        string collegeName;
+        uint studentId;
+        string studentName;
+        address studentAddress;
+        string course;
+        string class;
+        mapping(uint => Transcript) transcripts;
+        mapping(address => bool) sharedWith;
+    }
 
     struct Transcript {
-        string memory studentName;
-        string memory studentId;
-        string memory collegeName;
-        string memory course;
-        string memory class;
-        string memory uploadDate;
-        uint CGPA;
-        mapping (uint => Grade) storage grades;
-        address internal author;    // University Address
+        Student learner;
+        uint overallGrade;
+        string uploadDate;
+        mapping (uint => Grade) grades;
+        address author;    // Grading Office's Address
     }
-
     struct Grade {
-        string memory unitCode;
-        string memory unitName;
-        string memory year;
+        uint studentId;
+        string  unitCode;
+        string  unitName;
+        string  year;
         uint marks;
         uint GPA;
-        address internal author;    // University Address
+        address author;    // Grading Office's Address
     }
 
-    function writeGrade(
-        string memory _unitCode;
-        string memory _unitName;
-        string memory _year;
-        uint _marks;
-        uint _GPA;
-    ) public {
-        grades[gradesLength] = Grade(unitCode, unitName, year, marks, GPA, msg.sender);
-        gradesLength++;
+    mapping(uint => Student) internal students;
+
+    modifier onlyEducator() {
+        // Check if the sender is an authorized educator
+        require(isEducator(msg.sender), "Only authorized educators can perform this action");
+        _;
     }
 
-    function readGrades() public view returns (
-        string memory, 
-        string memory, 
-        string memory, 
-        uint, 
-        uint
-        address payable,
-    ) {
-        return grades;
+    modifier onlyStudent() {
+        // Check if the sender is a student
+        require(isStudent(msg.sender), "Only students can perform this action");
+        _;
     }
-    
-    function buyProduct(uint _index) public payable  {
-        require(
-          IERC20Token(cUsdTokenAddress).transferFrom(
-            msg.sender,
-            products[_index].owner,
-            products[_index].price
-          ),
-          "Transfer failed."
-        );
-        products[_index].sold++;
+
+    // Check if the account is an authorized educator
+    function isEducator(address account) public view returns (bool) {
+        if (account==grader) {return true; } else {return false; }
     }
-    
-    function getProductsLength() public view returns (uint) {
-        return (productsLength);
+    // Check if the account is a student
+    function isStudent(address account) public view returns (bool) {
+        if (account==student) {return true; } else {return false; }
+    }
+
+    // ======================== FUNCTIONS ==========================
+    function addStudent(
+        string memory _collegeName,
+        uint _studentId,
+        string memory _studentName,
+        string memory _course,
+        string memory _class
+    ) public onlyStudent onlyEducator {
+        transcriptsLength = 0;
+        // students[studentsLength] = Student(collegeName, studentId, studentName, msg.sender, course, class);
+        Student storage newStudent = students[studentsLength];
+        newStudent.collegeName = _collegeName;
+        newStudent.studentId = _studentId;
+        newStudent.studentName = _studentName;
+        newStudent.studentAddress = msg.sender;
+        newStudent.course = _course;
+        newStudent.class = _class;
+        studentsLength++; 
+    }
+
+    function addGrade(
+        uint _studentId,
+        string memory  _unitCode,
+        string memory  _unitName,
+        string memory  _year,
+        uint _marks,
+        uint _GPA,
+        address _author
+        ) public onlyEducator {
+            Student storage currentStudent = students[_studentId];
+            Transcript storage currentTranscript = currentStudent.transcripts[transcriptsLength];
+            Grade storage newGrade = currentTranscript.grades[gradesLength];
+            newGrade.studentId = _studentId;
+            newGrade.unitCode = _unitCode;
+            newGrade.unitName = _unitName;
+            newGrade.year = _year;
+            newGrade.marks = _marks;
+            newGrade.GPA = _GPA;
+            newGrade.author = _author;
+            gradesLength++;
     }
 }
