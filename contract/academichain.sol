@@ -65,16 +65,18 @@ contract Academichain {
         require(isEducator(msg.sender), "Only authorized educators can perform this action");
         _;
     }
-
     modifier onlyStudent() {
         require(isStudent(msg.sender), "Only students can perform this action");
         _;
     }
-
     modifier onlyMember() {
         require(isStudent(msg.sender) || isEducator(msg.sender), "Only students can perform this action");
         _;
     }
+    modifier onlyOwner(uint _id) {
+    require(msg.sender == students[_id].chainAddress, "Only the current owner can perform this action");
+    _;
+}
 
     // Check if the account is an authorized educator
     function isEducator(address account) public view returns (bool) {
@@ -87,7 +89,8 @@ contract Academichain {
     
 // ======================== FUNCTIONS ==========================
 
-    // Student
+    // ----------- STUDENT -------------
+    // Add student
      function addStudent(
         string memory _studentName,
         string memory _email,
@@ -106,7 +109,7 @@ contract Academichain {
         newStudent.class = _class;
         studentsLength++; 
     }
-
+    // Read student
     function getStudent(uint _studentId) public view onlyMember returns (
         uint,
         string memory,
@@ -128,8 +131,24 @@ contract Academichain {
             newStudent.class
         );
     }
-    
-    // GRADES
+    // Transcript read approval
+    function shareWith(uint _studentId, address _thirdParty) public onlyOwner(_studentId) {
+        Student storage student = students[_studentId];
+        student.sharedWith[_thirdParty] = true;
+    }
+    // Transcript read revoke
+    function unshareWith(uint _studentId, address _thirdParty) public onlyOwner(_studentId) {
+        Student storage student = students[_studentId];
+        student.sharedWith[_thirdParty] = false;
+    }
+    // Check approved 3rd parties
+    function isSharedWith(uint _studentId, address _thirdParty) public view returns (bool) {
+        Student storage student = students[_studentId];
+        return student.sharedWith[_thirdParty];
+    }
+
+    // --------------- GRADES -------------
+    // Add student grade
     function addGrade(
         uint _studentId,
         string memory _unitCode,
@@ -142,18 +161,11 @@ contract Academichain {
         Transcript storage transcript = students[_studentId].transcript;
         transcript.grades[transcript.gradesLength] = Grade(_unitCode, _unitTitle, _year, _period, _mark, _GPA, msg.sender);
         transcript.gradesLength++;
-        // newGrade.unitCode = _unitCode;
-        // newGrade.unitTitle = _unitTitle;
-        // newGrade.year = _year;
-        // newGrade.period = _period;
-        // newGrade.mark = _mark;
-        // newGrade.GPA = _GPA;
-        // newGrade.author = _author;
     }
-    // Update Grade function - Note: No optional parameter feature yet in Solidity
+    // Update Grade for student function - Note: No optional parameter feature yet in Solidity
     function updateGrade(
-        uint _gradeIndex,
         uint _studentId,
+        uint _gradeIndex,
         string memory _unitCode,
         string memory _unitTitle,
         string memory _year,
@@ -174,7 +186,7 @@ contract Academichain {
         newGrade.GPA = _GPA;
         newGrade.author = msg.sender;
     }
-
+    // Read Grades for Student
     function getGrade(
         uint _studentId,
         uint _gradeIndex
