@@ -4,13 +4,21 @@ pragma solidity ^0.8.0;
 
 contract Academichain {
 
-    uint internal studentsLength = 0;
-    address grader = 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4;
-    address student = 0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db;
-    // address = admin
-    // address grader = 0x2121cB84c07C03C86cab9142011233ea5c00ADd4;
-    // address student = 0x6aa049aFe44e6791ac07E6820D0018ba1601660B;
-    
+    uint internal studentsLength;
+    mapping(address => bool) private gradersAddress;
+    mapping(address => bool) private studentsAddress;
+
+    constructor() {
+        studentsLength = 0;
+        // Initialize the mapping with sample authorized educators
+        gradersAddress[0x5B38Da6a701c568545dCfcB03FcB875f56beddC4] = true;
+        gradersAddress[0x583031D1113aD414F02576BD6afaBfb302140225] = true;
+        
+        // Initialize the mapping with sample student addresses
+        studentsAddress[0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db] = true;
+        studentsAddress[0x4B0897b0513fdC7C541B6d9D7E929C4e5364D2dB] = true;
+    }
+
     struct Student {
         uint studentId;
         string studentName;
@@ -70,11 +78,11 @@ contract Academichain {
 
     // Check if the account is an authorized educator
     function isEducator(address account) public view returns (bool) {
-        if (account==grader) {return true; } else {return false; }
+        return gradersAddress[account];
     }
     // Check if the account is a student
     function isStudent(address account) public view returns (bool) {
-        if (account==student) {return true; } else {return false; }
+        return studentsAddress[account];
     }
     
 // ======================== FUNCTIONS ==========================
@@ -121,8 +129,29 @@ contract Academichain {
         );
     }
     
-    // Grade
-    function setGrade(
+    // GRADES
+    function addGrade(
+        uint _studentId,
+        string memory _unitCode,
+        string memory _unitTitle,
+        string memory _year,
+        string memory _period,
+        uint _mark,
+        uint _GPA
+    ) public onlyEducator {
+        Transcript storage transcript = students[_studentId].transcript;
+        transcript.grades[transcript.gradesLength] = Grade(_unitCode, _unitTitle, _year, _period, _mark, _GPA, msg.sender);
+        transcript.gradesLength++;
+        // newGrade.unitCode = _unitCode;
+        // newGrade.unitTitle = _unitTitle;
+        // newGrade.year = _year;
+        // newGrade.period = _period;
+        // newGrade.mark = _mark;
+        // newGrade.GPA = _GPA;
+        // newGrade.author = _author;
+    }
+    // Update Grade function - Note: No optional parameter feature yet in Solidity
+    function updateGrade(
         uint _gradeIndex,
         uint _studentId,
         string memory _unitCode,
@@ -130,22 +159,20 @@ contract Academichain {
         string memory _year,
         string memory _period,
         uint _mark,
-        uint _GPA,
-        address _author
+        uint _GPA
     ) public onlyEducator {
         Transcript storage transcript = students[_studentId].transcript;
-        Grade storage newGrade = transcript.grades[transcript.gradeLength];
-
         // Check if the grade index is within the existing grades range
         require(_gradeIndex < transcript.gradesLength, "Invalid grade index");
 
+        Grade storage newGrade = transcript.grades[_gradeIndex];
         newGrade.unitCode = _unitCode;
         newGrade.unitTitle = _unitTitle;
         newGrade.year = _year;
         newGrade.period = _period;
         newGrade.mark = _mark;
         newGrade.GPA = _GPA;
-        newGrade.author = _author;
+        newGrade.author = msg.sender;
     }
 
     function getGrade(
@@ -161,9 +188,9 @@ contract Academichain {
         address
     ) {
         Transcript storage transcript = students[_studentId].transcript;
+        // Check if the grade index is within the existing grades range
+        require(_gradeIndex <= transcript.gradesLength, "Invalid grade index");
         Grade storage grade = transcript.grades[_gradeIndex];
-
-        if(grade == transcript.grades[transcript.grade])
         return (
             grade.unitCode,
             grade.unitTitle,
@@ -174,5 +201,4 @@ contract Academichain {
             grade.author
         );
     }
-
 }
