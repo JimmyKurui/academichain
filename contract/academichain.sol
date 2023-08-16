@@ -1,54 +1,42 @@
-// SPDX-License-Identifier: GPL-3.0
-
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-contract Academichain {
+contract AcademicTranscript {
+    address private owner;     // Owner - Academichain
+    string private rootUser;
+    uint numOrganizations;
 
-    uint internal studentsLength;
-    mapping(address => bool) private gradersAddress;
-    mapping(address => bool) private studentsAddress;
-
-    constructor() {
-        studentsLength = 0;
-        // Initialize the mapping with sample authorized educators
-        gradersAddress[0x5B38Da6a701c568545dCfcB03FcB875f56beddC4] = true;
-        gradersAddress[0x583031D1113aD414F02576BD6afaBfb302140225] = true;
-        
-        // Initialize the mapping with sample student addresses
-        studentsAddress[0x4B20993Bc481177ec7E8f571ceCaE8A9e22C02db] = true;
-        studentsAddress[0x4B0897b0513fdC7C541B6d9D7E929C4e5364D2dB] = true;
+    struct Organization {
+        uint regNo;
+        string name;
+        string email;
+        string physicalAddress;
+        address chainAddress;
+        uint numAdmins;
+        uint numStudents;
+    }
+    // Grader
+    struct Admin {
+        uint id;
+        string name;
+        string email;
+        string physicalAddress;
+        address chainAddress;
+        string course;
     }
 
     struct Student {
-        uint studentId;
-        string studentName;
+        uint id;
+        string name;
         string email;
         string physicalAddress;
         address chainAddress;
         string course;
         string class;
-        Transcript transcript;
-        mapping(address => bool) sharedWith;
+        uint numGrades;
+        mapping(uint => Grade) grades;
     }
 
-    struct Organization {
-        uint regNo;
-        string organizationName;
-        string email;
-        address chainAddress;
-        string physicalAddress;        
-    }
-
-    struct Transcript {
-        uint totalCredits;
-        uint creditsEarned;
-        uint averageMark;
-        uint averageGrade;
-        string uploadDate;
-        uint gradesLength;
-        mapping (uint => Grade) grades;
-        address author;    // Grading Office's Address
-    }
     struct Grade {
         string unitCode;
         string unitTitle;
@@ -56,161 +44,91 @@ contract Academichain {
         string period;
         uint mark;
         uint GPA;
-        address author;    // Grading Office's Address
+        address grader;
     }
 
-    mapping(uint => Student) internal students;
+    mapping(string => mapping(uint => Student)) private students;
+    mapping(string => mapping(uint => Admin)) private admins;
+    mapping(string => Organization) private organizations;
 
-    modifier onlyEducator() {
-        require(isEducator(msg.sender), "Only authorized educators can perform this action");
-        _;
-    }
-    modifier onlyStudent() {
-        require(isStudent(msg.sender), "Only students can perform this action");
-        _;
-    }
-    modifier onlyMember() {
-        require(isStudent(msg.sender) || isEducator(msg.sender), "Only students can perform this action");
-        _;
-    }
-    modifier onlyOwner(uint _id) {
-    require(msg.sender == students[_id].chainAddress, "Only the current owner can perform this action");
-    _;
-}
+    event GradeUpdated(address indexed studentAddress, string courseCode, uint marks);
+    event ReadAccessGranted(address indexed studentAddress, address indexed verifierAddress);
+    event ReadAccessRevoked(address indexed studentAddress, address indexed verifierAddress);
 
-    // Check if the account is an authorized educator
-    function isEducator(address account) public view returns (bool) {
-        return gradersAddress[account];
+    modifier onlyAdmin(string memory _orgName) {
+        require(isAdmin[_orgName][msg.sender], "Only admins can perform this action");
+        _;
     }
-    // Check if the account is a student
-    function isStudent(address account) public view returns (bool) {
-        return studentsAddress[account];
+
+    modifier onlyStudent(string memory _orgName) {
+        require(isStudent[_orgName][msg.sender], "Only students can perform this action");
+        _;
     }
-    
+
+    modifier onlyMember(string memory _orgName) {
+        require(isStudent[_orgName][msg.sender] || isAdmin[_orgName][msg.sender],  "Only university members can perform this action");
+        _;
+    }
+
+    constructor() {
+        owner = msg.sender; 
+        rootUser = "AcademiChain";
+        numOrganizations = 0;
+        isOrganization[rootUser][owner] = true;
+
+        Admin storage root = admins[rootUser][numOrganizations];
+        root.chainAddress = owner;
+        isAdmin[rootUser][owner] = true;
+        numOrganizations++;
+    }
+
 // ======================== FUNCTIONS ==========================
+    // ------------ CHECKERS ---------------
+    mapping(string => mapping(address => bool)) public isStudent;
+    mapping(string => mapping(address => bool)) public isAdmin;
+    mapping(string => mapping(address => bool)) public isOrganization;
+    // mapping(address => mapping(address => bool)) public readAccess;
 
-    // ----------- STUDENT -------------
-    // Add student
-     function addStudent(
-        string memory _studentName,
-        string memory _email,
-        string memory _physicalAddress,
-        string memory _course,
-        string memory _class
-    ) public onlyMember {
-        // students[studentsLength] = Student(_studentId, _studentName, _email, msg.sender, _physicalAddress, _course, _class, (Transcript storage newTranscript) );
-        Student storage newStudent = students[studentsLength];
-        newStudent.studentId = studentsLength;
-        newStudent.studentName = _studentName;
-        newStudent.email = _email;
-        newStudent.physicalAddress = _physicalAddress;
-        newStudent.chainAddress = msg.sender;
-        newStudent.course = _course;
-        newStudent.class = _class;
-        studentsLength++; 
+    // ------------ ORGANIZATION ------------
+
+    function addOrganization(uint _regNo, string memory _orgName, string memory _email, string memory _physicalAddress, address _chainAddress) onlyAdmin(rootUser) public {
+        require(isOrganization["AcademiChain"][owner], "Contact Academichain");
+
+        Organization storage newOrg = organizations[_orgName];
+        // Default admin
+
+        newOrg.regNo = _regNo;
+        newOrg.name = _orgName;
+        newOrg.email = _email;
+        newOrg.physicalAddress = _physicalAddress;
+        newOrg.chainAddress = _chainAddress;
+        newOrg.numStudents = 0;
+        newOrg.numAdmins = 0;
+        isOrganization[_orgName][_chainAddress] = true;
+        numOrganizations++;
+
+        Admin storage rootAdmin = admins[_orgName][newOrg.numAdmins];
+        rootAdmin.chainAddress = newOrg.chainAddress;
+        isAdmin[_orgName][_chainAddress] = true;
+        newOrg.numAdmins++;
     }
-    // Read student
-    function getStudent(uint _studentId) public view onlyMember returns (
-        uint,
-        string memory,
-        string memory,
-        string memory,
-        address,
-        string memory,
-        string memory
+
+    function getOrganization(string memory _orgName) public view returns (
+        uint regNo,
+        string memory name,
+        string memory email,
+        string memory physicalAddress,
+        address chainAddress,
+        uint numStudents
     ) {
-        // students[studentsLength] = Student(_studentId, _studentName, _email, msg.sender, _physicalAddress, _course, _class, (Transcript storage newTranscript) );
-        Student storage newStudent = students[_studentId];
+        Organization storage org = organizations[_orgName];
         return (
-            newStudent.studentId,
-            newStudent.studentName,
-            newStudent.email,
-            newStudent.physicalAddress,
-            newStudent.chainAddress,
-            newStudent.course,
-            newStudent.class
-        );
-    }
-    // Transcript read approval
-    function shareWith(uint _studentId, address _thirdParty) public onlyOwner(_studentId) {
-        Student storage student = students[_studentId];
-        student.sharedWith[_thirdParty] = true;
-    }
-    // Transcript read revoke
-    function unshareWith(uint _studentId, address _thirdParty) public onlyOwner(_studentId) {
-        Student storage student = students[_studentId];
-        student.sharedWith[_thirdParty] = false;
-    }
-    // Check approved 3rd parties
-    function isSharedWith(uint _studentId, address _thirdParty) public view returns (bool) {
-        Student storage student = students[_studentId];
-        return student.sharedWith[_thirdParty];
-    }
-
-    // --------------- GRADES -------------
-    // Add student grade
-    function addGrade(
-        uint _studentId,
-        string memory _unitCode,
-        string memory _unitTitle,
-        string memory _year,
-        string memory _period,
-        uint _mark,
-        uint _GPA
-    ) public onlyEducator {
-        Transcript storage transcript = students[_studentId].transcript;
-        transcript.grades[transcript.gradesLength] = Grade(_unitCode, _unitTitle, _year, _period, _mark, _GPA, msg.sender);
-        transcript.gradesLength++;
-    }
-    // Update Grade for student function - Note: No optional parameter feature yet in Solidity
-    function updateGrade(
-        uint _studentId,
-        uint _gradeIndex,
-        string memory _unitCode,
-        string memory _unitTitle,
-        string memory _year,
-        string memory _period,
-        uint _mark,
-        uint _GPA
-    ) public onlyEducator {
-        Transcript storage transcript = students[_studentId].transcript;
-        // Check if the grade index is within the existing grades range
-        require(_gradeIndex < transcript.gradesLength, "Invalid grade index");
-
-        Grade storage newGrade = transcript.grades[_gradeIndex];
-        newGrade.unitCode = _unitCode;
-        newGrade.unitTitle = _unitTitle;
-        newGrade.year = _year;
-        newGrade.period = _period;
-        newGrade.mark = _mark;
-        newGrade.GPA = _GPA;
-        newGrade.author = msg.sender;
-    }
-    // Read Grades for Student
-    function getGrade(
-        uint _studentId,
-        uint _gradeIndex
-    ) public view onlyMember returns (
-        string memory,
-        string memory,
-        string memory,
-        string memory,
-        uint,
-        uint,
-        address
-    ) {
-        Transcript storage transcript = students[_studentId].transcript;
-        // Check if the grade index is within the existing grades range
-        require(_gradeIndex <= transcript.gradesLength, "Invalid grade index");
-        Grade storage grade = transcript.grades[_gradeIndex];
-        return (
-            grade.unitCode,
-            grade.unitTitle,
-            grade.year,
-            grade.period,
-            grade.mark,
-            grade.GPA,
-            grade.author
+            org.regNo,
+            org.name,
+            org.email,
+            org.physicalAddress,
+            org.chainAddress,
+            org.numStudents
         );
     }
 }
