@@ -1,55 +1,28 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-contract AcademicTranscript {
-    address private owner;     // Owner - Academichain
+import "./constants.sol";
+
+contract Utils {
+    address public owner;     // Owner - Academichain
     string private rootUser;
-    uint numOrganizations;
+    uint private numOrganizations;
 
-    struct Organization {
-        uint regNo;
-        string name;
-        string email;
-        string physicalAddress;
-        address chainAddress;
-        uint numAdmins;
-        uint numStudents;
-    }
-    // Grader
-    struct Admin {
-        uint id;
-        string name;
-        string email;
-        string physicalAddress;
-        address chainAddress;
-        string course;
+    constructor() {
+        owner = msg.sender; 
+        rootUser = "AcademiChain";
+        numOrganizations = 0;
+        
+        isOrganization[rootUser][owner] = true;
+        Admin storage root = admins[rootUser][numOrganizations];
+        root.chainAddress = owner;
+        isAdmin[rootUser][owner] = true;
+        numOrganizations++;
     }
 
-    struct Student {
-        uint id;
-        string name;
-        string email;
-        string physicalAddress;
-        address chainAddress;
-        string course;
-        string class;
-        uint numGrades;
-        mapping(uint => Grade) grades;
-    }
-
-    struct Grade {
-        string unitCode;
-        string unitTitle;
-        string year;
-        string period;
-        uint mark;
-        uint GPA;
-        address grader;
-    }
-
-    mapping(string => mapping(uint => Student)) private students;
-    mapping(string => mapping(uint => Admin)) private admins;
-    mapping(string => Organization) private organizations;
+    mapping(string => mapping(uint => Utils.Student)) private students;
+    mapping(string => mapping(uint => Utils.Admin)) private admins;
+    mapping(string => Utils.Organization) private organizations;
 
     event GradeUpdated(address indexed studentAddress, string courseCode, uint marks);
     event ReadAccessGranted(address indexed studentAddress, address indexed verifierAddress);
@@ -68,18 +41,6 @@ contract AcademicTranscript {
     modifier onlyMember(string memory _orgName) {
         require(isStudent[_orgName][msg.sender] || isAdmin[_orgName][msg.sender],  "Only university members can perform this action");
         _;
-    }
-
-    constructor() {
-        owner = msg.sender; 
-        rootUser = "AcademiChain";
-        numOrganizations = 0;
-        isOrganization[rootUser][owner] = true;
-
-        Admin storage root = admins[rootUser][numOrganizations];
-        root.chainAddress = owner;
-        isAdmin[rootUser][owner] = true;
-        numOrganizations++;
     }
 
 // ======================== FUNCTIONS ==========================
@@ -129,6 +90,40 @@ contract AcademicTranscript {
             org.physicalAddress,
             org.chainAddress,
             org.numStudents
+        );
+    }
+
+    // ------------- ADMINS ------------------
+    function addAdmin(string memory _orgName, string memory _name, string memory _email, string memory _physicalAddress, address _chainAddress, string memory _course) public onlyAdmin(_orgName) {
+        Organization storage org = organizations[_orgName];
+        
+        Admin storage newAdmin = admins[_orgName][org.numAdmins];
+        newAdmin.id = org.numAdmins;
+        newAdmin.name = _name;
+        newAdmin.email = _email;
+        newAdmin.physicalAddress = _physicalAddress;
+        newAdmin.chainAddress = _chainAddress;
+        newAdmin.course = _course;
+        
+        isAdmin[_orgName][newAdmin.chainAddress] = true;
+        org.numAdmins++; 
+    }
+
+    // Getter function to retrieve admin details
+    function getAdmin(string memory _orgName, uint _adminId) public view returns (
+        string memory name,
+        string memory email,
+        string memory physicalAddress,
+        address chainAddress,
+        string memory course
+    ) {
+        Admin storage admin = admins[_orgName][_adminId];
+        return (
+            admin.name,
+            admin.email,
+            admin.physicalAddress,
+            admin.chainAddress,
+            admin.course
         );
     }
 }
